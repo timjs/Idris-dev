@@ -232,9 +232,9 @@ mkLDecl n (CaseOp ci _ _ _ pats cd)
     caseName _ = False
 
 mkLDecl n (TyDecl (DCon tag arity _) ty) =
-    LConstructor n tag . length <$> fgetState (cg_usedpos . ist_callgraph n) <*> pure [irType ty]
+    LConstructor n tag . length <$> fgetState (cg_usedpos . ist_callgraph n) <*> pure (irType ty)
 
-mkLDecl n (TyDecl (TCon t a) ty) = return $ LConstructor n (-1) a [irType ty]
+mkLDecl n (TyDecl (TCon t a) ty) = return $ LConstructor n (-1) a (irType ty)
 mkLDecl n _ = return $ (declArgs [] True n LNothing) -- postulate, never run
 
 data VarInfo = VI
@@ -245,13 +245,20 @@ data VarInfo = VI
 type Vars = M.Map Name VarInfo
 
 irType :: Type -> BasicTy
-irType ty = trace (">> CONVERTED " ++ show ty ++ " TO " ++ show bt) bt
+irType ty = trace (">> FROM " ++ show ty ++ "\n   TO   " ++ show bt) bt
   where
     bt = convert ty
+
+    convert :: Type -> BasicTy
     convert (Constant StrType) = BTString
     convert (Constant (AType at)) = BTArith at
+    convert (P _ name _)
+        | name == boolName = BTBool
+    convert (Bind _nametype (Pi _rigcount _implicit ty _kind) cont) = BTFun (convert ty) (convert cont)
     convert  _ = BTAny
     --XXX WorldType and VoidType needed?
+
+    boolName = sNS (sUN "Bool") ["Bool", "Prelude"]
 
 irTerm :: Name -> Vars -> [Name] -> Term -> Idris LExp
 irTerm top vs env tm@(App _ f a) = do
