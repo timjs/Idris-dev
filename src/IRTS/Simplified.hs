@@ -39,7 +39,7 @@ data SAlt = SConCase Int Int Name [Name] SExp
           | SDefaultCase SExp
   deriving Show
 
-data SDecl = SFun Name [Name] Int SExp
+data SDecl = SFun Name [Name] Int SExp -- name, arg names, number of locals (without args), defintion
   deriving Show
 
 hvar :: State (DDefs, Int) Int

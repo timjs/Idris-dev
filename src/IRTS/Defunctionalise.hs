@@ -83,7 +83,7 @@ getFn xs = mapMaybe fnData xs
         fnData _ = Nothing
 
 addApps :: LDefs -> (Name, LDecl) -> State ([Name], [(Name, Int)]) (Name, DDecl)
-addApps defs o@(n, LConstructor _ t a)
+addApps defs o@(n, LConstructor _ t a _)
     = return (n, DConstructor n t a)
 addApps defs (n, LFun _ _ args e)
     = do e' <- aa args e
@@ -95,14 +95,14 @@ addApps defs (n, LFun _ _ args e)
     aa env (LApp tc (LV (Glob n)) args)
        = do args' <- mapM (aa env) args
             case lookupCtxtExact n defs of
-                Just (LConstructor _ i ar) -> return $ DApp tc n args'
+                Just (LConstructor _ i ar _) -> return $ DApp tc n args'
                 Just (LFun _ _ as _) -> let arity = length as in
                                                fixApply tc n args' arity
                 Nothing -> return $ chainAPPLY (DV (Glob n)) args'
     aa env (LLazyApp n args)
        = do args' <- mapM (aa env) args
             case lookupCtxtExact n defs of
-                Just (LConstructor _ i ar) -> return $ DApp False n args'
+                Just (LConstructor _ i ar _) -> return $ DApp False n args'
                 Just (LFun _ _ as _) -> let arity = length as in
                                            fixLazyApply n args' arity
                 Nothing -> return $ chainAPPLY (DV (Glob n)) args'

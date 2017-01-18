@@ -170,11 +170,11 @@ showCaseTrees = showSep "\n\n" . map showCT . sortBy (comparing defnRank)
     showCT (n, LFun _ f args lexp)
        = show n ++ " " ++ showSep " " (map show args) ++ " =\n\t"
             ++ show lexp
-    showCT (n, LConstructor c t a) = "data " ++ show n ++ " " ++ show a
+    showCT (n, LConstructor c t a _) = "data " ++ show n ++ " " ++ show a
 
     defnRank :: (Name, LDecl) -> String
     defnRank (n, LFun _ _ _ _)       = "1" ++ nameRank n
-    defnRank (n, LConstructor _ _ _) = "2" ++ nameRank n
+    defnRank (n, LConstructor _ _ _ _) = "2" ++ nameRank n
 
     nameRank :: Name -> String
     nameRank (UN s)   = "1" ++ show s
@@ -231,10 +231,10 @@ mkLDecl n (CaseOp ci _ _ _ pats cd)
     caseName (NS n _) = caseName n
     caseName _ = False
 
-mkLDecl n (TyDecl (DCon tag arity _) _) =
-    LConstructor n tag . length <$> fgetState (cg_usedpos . ist_callgraph n)
+mkLDecl n (TyDecl (DCon tag arity _) ty) =
+    LConstructor n tag . length <$> fgetState (cg_usedpos . ist_callgraph n) <*> pure [irType ty]
 
-mkLDecl n (TyDecl (TCon t a) _) = return $ LConstructor n (-1) a
+mkLDecl n (TyDecl (TCon t a) ty) = return $ LConstructor n (-1) a [irType ty]
 mkLDecl n _ = return $ (declArgs [] True n LNothing) -- postulate, never run
 
 data VarInfo = VI
@@ -243,6 +243,15 @@ data VarInfo = VI
     deriving Show
 
 type Vars = M.Map Name VarInfo
+
+irType :: Type -> BasicTy
+irType ty = trace (">> CONVERTED " ++ show ty ++ " TO " ++ show bt) bt
+  where
+    bt = convert ty
+    convert (Constant StrType) = BTString
+    convert (Constant (AType at)) = BTArith at
+    convert  _ = BTAny
+    --XXX WorldType and VoidType needed?
 
 irTerm :: Name -> Vars -> [Name] -> Term -> Idris LExp
 irTerm top vs env tm@(App _ f a) = do

@@ -64,6 +64,13 @@ data ExportIFace = Export Name -- FFI descriptor
                           [Export]
   deriving (Show, Eq)
 
+-- Basic type information propagated through IR's for optimised code generation
+data BasicTy = BTAny
+             | BTBool
+             | BTString
+             | BTArith ArithTy
+    deriving (Show, Eq)
+
 -- Primitive operators. Backends are not *required* to implement all
 -- of these, but should report an error if they are unable
 
@@ -121,8 +128,9 @@ data LAlt' e = LConCase Int Name [Name] e
 
 type LAlt = LAlt' LExp
 
-data LDecl = LFun [LOpt] Name [Name] LExp -- options, name, arg names, def
-           | LConstructor Name Int Int -- constructor name, tag, arity
+data LDecl = LFun [LOpt] Name [Name] LExp -- options, name, arg names and types, return type, definiton
+-- data LDecl = LFun [LOpt] Name [(Name, BasicTy)] BasicTy LExp -- options, name, arg names and types, return type, definiton
+           | LConstructor Name Int Int [BasicTy] -- constructor name, tag, arity, basic types
   deriving (Show, Eq)
 
 type LDefs = Ctxt LDecl
@@ -132,10 +140,10 @@ data LOpt = Inline | NoInline
 
 addTags :: Int -> [(Name, LDecl)] -> (Int, [(Name, LDecl)])
 addTags i ds = tag i ds []
-  where tag i ((n, LConstructor n' (-1) a) : as) acc
-            = tag (i + 1) as ((n, LConstructor n' i a) : acc)
-        tag i ((n, LConstructor n' t a) : as) acc
-            = tag i as ((n, LConstructor n' t a) : acc)
+  where tag i ((n, LConstructor n' (-1) a bt) : as) acc
+            = tag (i + 1) as ((n, LConstructor n' i a bt) : acc)
+        tag i ((n, LConstructor n' t a bt) : as) acc
+            = tag i as ((n, LConstructor n' t a bt) : acc)
         tag i (x : as) acc = tag i as (x : acc)
         tag i [] acc  = (i, reverse acc)
 
@@ -218,7 +226,7 @@ lift env (LError str) = return $ LError str
 lift env LNothing = return LNothing
 
 allocUnique :: LDefs -> (Name, LDecl) -> (Name, LDecl)
-allocUnique defs p@(n, LConstructor _ _ _) = p
+allocUnique defs p@(n, LConstructor _ _ _ _) = p
 allocUnique defs (n, LFun opts fn args e)
     = let e' = evalState (findUp e) [] in
           (n, LFun opts fn args e')
@@ -227,11 +235,11 @@ allocUnique defs (n, LFun opts fn args e)
     -- entry may be reused, along with the arity which was there
     findUp :: LExp -> State [(Name, Int)] LExp
     findUp (LApp t (LV (Glob n)) as)
-       | Just (LConstructor _ i ar) <- lookupCtxtExact n defs,
+       | Just (LConstructor _ i ar _) <- lookupCtxtExact n defs,
          ar == length as
           = findUp (LCon Nothing i n as)
     findUp (LV (Glob n))
-       | Just (LConstructor _ i 0) <- lookupCtxtExact n defs
+       | Just (LConstructor _ i 0 _) <- lookupCtxtExact n defs
           = return $ LCon Nothing i n [] -- nullary cons are global, no need to update
     findUp (LApp t f as) = LApp t <$> findUp f <*> mapM findUp as
     findUp (LLazyApp n as) = LLazyApp n <$> mapM findUp as

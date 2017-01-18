@@ -76,7 +76,7 @@ instance ToJSON Export where
 
 instance ToJSON LDecl where
     toJSON (LFun opts name args def) = object ["LFun" .= (opts, name, args, def)]
-    toJSON (LConstructor name tag ar) = object ["LConstructor" .= (name, tag, ar)]
+    toJSON (LConstructor name tag ar bt) = object ["LConstructor" .= (name, tag, ar, bt)]
 
 instance ToJSON LOpt where
     toJSON Inline = String "Inline"
@@ -128,6 +128,12 @@ instance ToJSON Const where
     toJSON TheWorld = object ["theworld" .= Null]
     toJSON VoidType = object ["voidtype" .= Null]
     toJSON Forgot = object ["forgot" .= Null]
+
+instance ToJSON BasicTy where
+    toJSON BTAny = object ["BTAny" .= Null]
+    toJSON BTBool = object ["BTBool" .= Null]
+    toJSON BTString = object ["BTString" .= Null]
+    toJSON (BTArith at) = object ["BTArith" .= at]
 
 instance ToJSON ArithTy where
     toJSON (ATInt it) = object ["ATInt" .= it]
