@@ -130,8 +130,7 @@ data LAlt' e = LConCase Int Name [Name] e
 type LAlt = LAlt' LExp
 
 data LDecl = LFun [LOpt] Name [Name] LExp -- options, name, arg names and types, return type, definiton
--- data LDecl = LFun [LOpt] Name [(Name, BasicTy)] BasicTy LExp -- options, name, arg names and types, return type, definiton
-           | LConstructor Name Int Int BasicTy -- constructor name, tag, arity, basic types
+           | LConstructor Name Int Int [BasicTy]  -- constructor name, tag, arity, basic types
   deriving (Show, Eq)
 
 type LDefs = Ctxt LDecl

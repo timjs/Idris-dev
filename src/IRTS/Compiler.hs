@@ -231,10 +231,11 @@ mkLDecl n (CaseOp ci _ _ _ pats cd)
     caseName (NS n _) = caseName n
     caseName _ = False
 
-mkLDecl n (TyDecl (DCon tag arity _) ty) =
-    LConstructor n tag . length <$> fgetState (cg_usedpos . ist_callgraph n) <*> pure (irType ty)
+mkLDecl n (TyDecl (DCon tag arity _) ty) = do
+    used <- fgetState (cg_usedpos . ist_callgraph n)
+    pure $ LConstructor n tag (length used) (irType (map fst used) ty)
 
-mkLDecl n (TyDecl (TCon t a) ty) = return $ LConstructor n (-1) a (irType ty)
+mkLDecl n (TyDecl (TCon t a) ty) = return $ LConstructor n (-1) a (replicate a BTAny) --FIXME type constructors never use basic types?
 mkLDecl n _ = return $ (declArgs [] True n LNothing) -- postulate, never run
 
 data VarInfo = VI
@@ -244,21 +245,30 @@ data VarInfo = VI
 
 type Vars = M.Map Name VarInfo
 
-irType :: Type -> BasicTy
-irType ty = trace (">> FROM " ++ show ty ++ "\n   TO   " ++ show bt) bt
+irType :: [Int] -> Type -> [BasicTy]
+irType is ty = select is $ decombine (convert ty)
   where
-    bt = convert ty
-
     convert :: Type -> BasicTy
     convert (Constant StrType) = BTString
     convert (Constant (AType at)) = BTArith at
     convert (P _ name _)
-        | name == boolName = BTBool
+        | name == sNS (sUN "Bool") ["Bool", "Prelude"] = BTBool
     convert (Bind _nametype (Pi _rigcount _implicit ty _kind) cont) = BTFun (convert ty) (convert cont)
     convert  _ = BTAny
     --XXX WorldType and VoidType needed?
 
-    boolName = sNS (sUN "Bool") ["Bool", "Prelude"]
+    decombine :: BasicTy -> [BasicTy]
+    decombine (BTFun a b) = a : decombine b
+    decombine bt = [bt]
+
+    select :: [Int] -> [a] -> [a]
+    select is xs = select' is xs 0
+      where
+        select' [] _ _ = []
+        select' _ [] _ = []
+        select' (i:is) (x:xs) n
+          | i == n = x : select' is xs (n + 1)
+          | otherwise = select' (i:is) xs (n + 1)
 
 irTerm :: Name -> Vars -> [Name] -> Term -> Idris LExp
 irTerm top vs env tm@(App _ f a) = do
